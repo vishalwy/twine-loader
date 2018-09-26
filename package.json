@@ -3,17 +3,15 @@
   "version": "0.1.1",
   "description": "Node module for loading Twine(https://github.com/scelis/twine) string file",
   "main": "index.js",
-
   "author": {
     "name": "Vishal P R",
     "url": "https://github.com/vishalwy"
   },
-
   "scripts": {
     "postinstall": "gem install --install-dir gems twine"
   },
-
   "dependencies": {
+    "loader-utils": "^1.1.0",
     "tmp": "0.0.33"
   }
 }

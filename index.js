@@ -4,44 +4,9 @@ var fs = require('fs');
 var tmp = require('tmp');
 var readline = require('readline');
 var path = require('path');
+var DelayLoader = require('./delay-loader');
+var InlineLoader = require('./inline-loader');
 var GEM_DIR = path.join(__dirname, 'gems');
-
-//The module funtion. This is the JS function defenition we return from our loader module.
-//The function try to require the best possible JS file matching the locale.
-//For the locale 'pt-br', the function tries to require following in order; '[url]-pt-br', '[url]-pt' & '[url]-en.
-function loaderModule(url) {
-  var lang = navigator.language;
-  var fs = require('fs');
-  var path = require('path');
-  var strings = null;
-
-  //function to require the JS file at runtime using eval().
-  //if we use require() direcly, Webpack will try to resolve that also, resulting in compilation error.
-  var requireJson = function(file) {
-    return eval('require("' + file + '")');
-  };
-  
-  try {
-    strings = requireJson(url + '-' + lang);
-  } catch(error) {}
-
-  try {
-    strings = strings || requireJson(url + '-' + lang.split('-')[0]);
-  } catch(error) {}
-  
-  strings = strings || requireJson(url + '-en');
-
-  return function(id) {
-    var prop = strings[id];
-
-    if(typeof prop === 'function') {
-      Array.prototype.shift.apply(arguments);
-      return prop.apply(this, arguments);
-    }
-    
-    return prop;
-  };
-}
 
 //Function to parse JSON "key":"value" string terminated by '\n'. 
 //The function also replaces placeholder like '%@', '%d' etc with the currusponding arguments.
@@ -114,25 +79,9 @@ function parseFile(lang, outputFile, callback) {
     });        
 }
 
-//Function generate a JS code for the strings object
-function generateJS(strings) {
-  var code = '';
-
-  for(var key in strings) {
-    if(!strings.hasOwnProperty(key))
-      continue;
-
-    var prop = strings[key];
-    code += JSON.stringify(key) + ' : ';
-    code += (typeof prop === 'function' ? prop.toString() : prop) + ',\n';
-  }
-
-  return 'module.exports = {\n' + code + '}';
-}
-
 //Function to get the languages given in the query. 'en' is default
-function getLanguages(query) {
-  var langs = query.languages || [], uniqueLangs = {'en': true};
+function getLanguages(options) {
+  var langs = options.languages || [], uniqueLangs = {'en': true};
 
   for(var i = 0; i < langs.length; ++i)
     uniqueLangs[langs[i]] = true;
@@ -143,30 +92,26 @@ function getLanguages(query) {
 //Main entry point for the loader. The loader should process the content and return a valid JS expression.
 //https://webpack.js.org/api/loaders
 module.exports = function(content) {
-  if(!this.emitFile) 
-    throw new Error('emitFile is required from module system');
-
   this.cacheable && this.cacheable();  //mark the loader as cacheable so that it doesnt recompile everytime
   var callback = this.async();  //we are going to perform some async operations to process the content; hence mark it as async
-  var query = loaderUtils.parseQuery(this.query);  //parse the query; valid options include {languages: ['en', 'fr', ...]"}
-  var langs = getLanguages(query);  
+  
+  //parse the query; valid options include {languages: ['en', 'fr', ...]"}
+  var options = loaderUtils.getOptions ? loaderUtils.getOptions(this) : loaderUtils.parseQuery(this.query); 
+  
+  var langs = getLanguages(options);  
   var twine = path.join(GEM_DIR, 'bin', 'twine');  //twine is located under gems/bin
   var langIndex = -1, langError = false, that = this;
 
   //environment variable for twine command. we set GEM_HOME & GEM_PATH so that twine gem can be found
   var env = Object.assign({}, process.env, {'GEM_HOME': GEM_DIR, 'GEM_PATH': GEM_DIR});  
 
-  //generate hash value for emiting the cotnent in output folder
-  var url = loaderUtils.interpolateName(this, '[hash]', {
-      context: query.context || this.options.context,
-      content: content
-    });
-
   //write the content to a temp file so that we can pass it to twine command
   var tmpFile = tmp.fileSync();
   fs.writeSync(tmpFile.fd, content);
 
-  //Function to generate languages one by one. This works in conjuntion with generateFile
+  var loader = new InlineLoader(this);
+
+  //Function to generate languages one by one. This works in conjuntion with compileLang
   function generateLangs(error) {
     if(error) {
       that.emitError(error);
@@ -174,35 +119,32 @@ module.exports = function(content) {
     }
 
     if(++langIndex < langs.length) 
-      generateFile(langs[langIndex]);
+      compileLang(langs[langIndex]);
     else if(langError)
       callback(new Error('Failed to generate language files'));
     else
-      callback(null, 'module.exports = (' + loaderModule.toString() + ')(' + JSON.stringify('./' + url) + ')');
+      callback(null, loader.generateModule());
   }
 
   //Function to generate language file for the language given
-  function generateFile(lang) {
+  function compileLang(lang) {
     //for each language generate a unique JSON file name to output and execute twine command
     var outputFile = tmp.tmpNameSync();
     var command = [twine, 'generate-localization-file', tmpFile.name, outputFile, 
       '-l', lang, '-f', 'jquery', '-i', 'all'];
 
     childProcess.exec(command.join(' '), {env: env}, function(error, stdout, stderr) {
-        if(error || stdout || stderr) 
-          generateLangs(error || new Error(stdout || stderr));
-        else {
-          //parse each JSON file generated by twine
-          parseFile(lang, outputFile, function(error, strings) {
-              fs.unlinkSync(outputFile);
-
-              //for every file parsed successfully, emit a JS file
-              !error && that.emitFile(url + '-' + lang + '.js', generateJS(strings)); 
-    
-              generateLangs(error);
-            });
-        }
-      });
+      if(error || stdout || stderr) 
+        generateLangs(error || new Error(stdout || stderr));
+      else {
+        //parse each JSON file generated by twine
+        parseFile(lang, outputFile, function(error, strings) {
+          fs.unlinkSync(outputFile);
+          !error && loader.generateOutput(lang, strings);
+          generateLangs(error);
+        });
+      }
+    });
   }
 
   generateLangs();

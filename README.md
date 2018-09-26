@@ -13,10 +13,10 @@ console.log(strings('STUDENT_NAME_MARKS', 'John', 85));
  {
      test: /strings\.txt$/, 
      loader: 'twine-loader', 
-     query: {languages: ['en', 'de']}
+     query: {languages: ['en'], delayLoad: false}
  }
 ```
-With the configuration given above, you can ask Webpack to load any file with name strings.txt using twine-loader. In the configuration, you can specify the languages you want to generate the translations for. Please note that you will need to include ‘en’ as one language you want to generate. If you don’t, twine-loader will add it for you. 
+With the configuration given above, you can ask Webpack to load any file with name strings.txt using twine-loader. In the configuration, you can specify the languages you want to generate the translations for. Please note that 'en' will alwyas be selected as one of the languages to generate, no matter whether you include it or not. Also, set delayLoad to true, to load the language files at run time using 'require'. 
 
 
 ## Dependency

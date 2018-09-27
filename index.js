@@ -4,8 +4,8 @@ var fs = require('fs');
 var tmp = require('tmp');
 var readline = require('readline');
 var path = require('path');
-var DelayLoader = require('./delay-loader');
-var InlineLoader = require('./inline-loader');
+var DynamicLoader = require('./dynamic-loader');
+var StaticLoader = require('./static-loader');
 var GEM_DIR = path.join(__dirname, 'gems');
 
 //Function to parse JSON "key":"value" string terminated by '\n'. 
@@ -111,10 +111,10 @@ module.exports = function(content) {
   var tmpFile = tmp.fileSync();
   fs.writeSync(tmpFile.fd, content);
 
-  if(options.delayLoad)
-    loader = new DelayLoader(this, content);
+  if(options.dynamicLoading)
+    loader = new DynamicLoader(this, content);
   else
-    loader = new InlineLoader(this);
+    loader = new StaticLoader(this);
 
   //Function to generate languages one by one. This works in conjuntion with compileLang
   function generateLangs(error) {

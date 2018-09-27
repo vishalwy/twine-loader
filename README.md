@@ -5,16 +5,27 @@ This Webpack loader allows you to directly require the twine data file from JS c
 
 ```javascript
 import strings from '../../assets/strings.txt';
-console.log(strings('STUDENT_NAME_MARKS', 'John', 85));
+
+//English version of the string
+console.log(strings.get('en', 'STUDENT_NAME_MARKS', 'John', 85));
+
+//Portuguese version of the string if it exists; fallback to 'en'
+console.log(strings.get('pt', 'STUDENT_NAME_MARKS', 'John', 85));
+
+//Brazilian Portuguese version of the string if it exists; fallback to 'pt'
+console.log(strings.get('pt-br', 'STUDENT_NAME_MARKS', 'John', 85)); //print 
+
+//Version of the string based on user's locale; fallback to 'en' 
+console.log(strings('STUDENT_NAME_MARKS', 'John', 85)); 
 ```
 
 ## Configuration
 ```javascript
- {
-     test: /strings\.txt$/, 
-     loader: 'twine-loader', 
-     query: {languages: ['en'], delayLoad: false}
- }
+{
+    test: /strings\.txt$/, 
+    loader: 'twine-loader', 
+    query: {languages: ['en'], dynamicLoading: false}
+}
 ```
 With the configuration given above, you can ask Webpack to load any file with name strings.txt using twine-loader. In the configuration, you can specify the languages you want to generate the translations for. Please note that 'en' will alwyas be selected as one of the languages to generate, no matter whether you include it or not. Also, set delayLoad to true, to load the language files at run time using 'require'. 
 

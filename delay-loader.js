@@ -22,26 +22,46 @@ DelayLoader.prototype.generateModule = function() {
 //The function try to require the best possible JS file matching the locale.
 //For the locale 'pt-br', the function tries to require following in order; '[url]-pt-br', '[url]-pt' & '[url]-en.
 function loaderModule(url) {
-  var lang = navigator.language;
-  var strings = null;
+  var langStrings = {}, defaultLang = 'en';
+
+  try {
+    defaultLang = navigator.language || defaultLang;
+  } catch(error) {}
 
   //function to require the JS file at runtime using eval().
   //if we use require() direcly, Webpack will try to resolve that also, resulting in compilation error.
   var requireJson = function(file) {
     return eval('require("' + file + '")');
   };
-  
-  try {
-    strings = requireJson(url + '-' + lang);
-  } catch(error) {}
 
-  try {
-    strings = strings || requireJson(url + '-' + lang.split('-')[0]);
-  } catch(error) {}
+  function loadLangStrings(lang) {
+    try {
+      langStrings[lang] = langStrings[lang] || requireJson(url + '-' + lang);
+      return langStrings[lang];
+    } catch(error) {}
   
-  strings = strings || requireJson(url + '-en');
+    try {
+      var tempLang = lang.split('-')[0];
+      langStrings[lang] = loadLangStrings(lang == tempLang ? 'en' : tempLang); 
+    } catch(error) {}
 
-  return function(id) {
+    return langStrings[lang];  
+  }
+  
+  function getLangString(lang, id) {
+    var strings = langStrings[lang] || loadLangStrings(lang);
+    var prop = strings[id];
+
+    if(typeof prop === 'function') {
+      Array.prototype.splice.call(arguments, 0, 2);
+      return prop.apply(this, arguments);
+    }
+    
+    return prop;
+  }
+
+  function getString(id) {
+    var strings = langStrings[defaultLang] || loadLangStrings(defaultLang);
     var prop = strings[id];
 
     if(typeof prop === 'function') {
@@ -50,7 +70,10 @@ function loaderModule(url) {
     }
     
     return prop;
-  };
+  }
+
+  getString.get = getLangString;
+  return getString;
 }
 
 //Function generate a JS code for the strings object

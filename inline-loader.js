@@ -12,19 +12,38 @@ InlineLoader.prototype.generateModule = function() {
 };
 
 function loaderModule(langStrings) {
-  var lang = navigator.language, strings = null;
+  var defaultLang = 'en';
 
   try {
-    strings = langStrings[lang];
+    defaultLang = navigator.language || defaultLang;
   } catch(error) {}
 
-  try {
-    strings = strings || langStrings[lang.split('-')[0]];
-  } catch(error) {}
+  function loadLangStrings(lang) {
+    try {
+      if(langStrings[lang])
+        return langStrings[lang];
+
+      var tempLang = lang.split('-')[0];
+      langStrings[lang] = loadLangStrings(lang == tempLang ? 'en' : tempLang); 
+    } catch(error) {}
+
+    return langStrings[lang];  
+  }
   
-  strings = strings || langStrings['en'];
+  function getLangString(lang, id) {
+    var strings = langStrings[lang] || loadLangStrings(lang);
+    var prop = strings[id];
+    
+    if(typeof prop === 'function') {
+      Array.prototype.splice.call(arguments, 0, 2);
+      return prop.apply(this, arguments);
+    }
+    
+    return prop;
+  }
 
-  return function(id) {
+  function getString(id) {
+    var strings = langStrings[defaultLang] || loadLangStrings(defaultLang);
     var prop = strings[id];
 
     if(typeof prop === 'function') {
@@ -33,7 +52,10 @@ function loaderModule(langStrings) {
     }
     
     return prop;
-  };
+  }
+
+  getString.get = getLangString;
+  return getString;
 }
 
 function stringifyLang(lang, strings) {

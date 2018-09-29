@@ -1,6 +1,6 @@
 {
   "name": "twine-loader",
-  "version": "0.1.1",
+  "version": "1.0.1",
   "description": "Node module for loading Twine(https://github.com/scelis/twine) string file",
   "main": "index.js",
   "author": {

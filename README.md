@@ -22,12 +22,32 @@ console.log(strings('STUDENT_NAME_MARKS', 'John', 85));
 ## Configuration
 ```javascript
 {
-    test: /strings\.txt$/, 
-    loader: 'twine-loader', 
-    query: {languages: ['en'], dynamicLoading: false}
+    test: /strings\.txt$/,
+    loader: 'twine-loader',
+
+    //loader options. defaults are given below
+    query: {
+        //languages to generate/load
+        languages: ['en'],   
+
+        //this can be an true or false or an options object
+        dynamicLoader: {
+            //prefix for the files generated, use this to control the file location
+            urlPrefix: './[hash]-',
+
+            //function to return the url given. default is to require from file system
+            //you can write your own function to load it from a cache or a similar location
+            //please not that this is a sync function, so you have to have your string files loaded in advance 
+            loaderFunc: function(url) {
+                //do not use require() direcly, Webpack will try to resolve that also, resulting in exception.
+                //use either __non_webpack_require__() or eval('require()').
+                return eval('require("' + url + '")');
+            }
+        }
+    }
 }
 ```
-With the configuration given above, you can ask Webpack to load any file with name strings.txt using twine-loader. In the configuration, you can specify the languages you want to generate the translations for. Please note that 'en' will alwyas be selected as one of the languages to generate, no matter whether you include it or not. Also, set delayLoad to true, to load the language files at run time using 'require'. 
+With the configuration given above, you can ask Webpack to load any file with name ```strings.txt``` using twine-loader. In the configuration, you can specify the languages you want to generate the translations for. Please note that 'en' will alwyas be selected as one of the languages to generate, no matter whether you include it or not. Also, set ```dynamicLoader``` to ```true```, to load the language files at run time using default options. Alternatively you may supply custom options to fine tune the behvior.  
 
 
 ## Dependency

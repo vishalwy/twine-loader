@@ -5,7 +5,7 @@ var tmp = require('tmp');
 var readline = require('readline');
 var path = require('path');
 var DynamicLoader = require('./dynamic-loader');
-var StaticLoader = require('./static-loader');
+var InlineLoader = require('./inline-loader');
 var GEM_DIR = path.join(__dirname, 'gems');
 
 //function to parse JSON "key":"value" string terminated by '\n'. 
@@ -82,13 +82,27 @@ function parseFile(lang, outputFile, callback) {
 }
 
 //function to get the languages given in the query. 'en' is default
-function getLanguages(options) {
-  var langs = options.languages || [], uniqueLangs = {'en': true};
-
+function getLanguages(options, defaultLang) {
+  var langs = options.languages || [], uniqueLangs = {};
+  
   for(var i = 0; i < langs.length; ++i)
     uniqueLangs[langs[i]] = true;
 
+  uniqueLangs[defaultLang] = true;
   return Object.keys(uniqueLangs);
+}
+
+//function to extract and set the default options
+function getOptions(loader, content) {
+  var query = loaderUtils.getOptions ? loaderUtils.getOptions(loader) : loaderUtils.parseQuery(loader.query); 
+  var defaultLang = query.defaultLanguage || 'en';
+
+  return {
+    defaultLanguage: defaultLang, 
+    content: content,
+    dynamicLoader: query.dynamicLoader,
+    languages: getLanguages(query, defaultLang)
+  };
 }
 
 //main entry point for the loader. the loader should process the content and return a valid JS expression.
@@ -96,11 +110,7 @@ function getLanguages(options) {
 module.exports = function(content) {
   this.cacheable && this.cacheable();  //mark the loader as cacheable so that it doesnt recompile everytime
   var callback = this.async();  //we are going to perform some async operations to process the content; hence mark it as async
-  
-  //parse the query; valid options include {languages: ['en', 'fr', ...]"}
-  var options = loaderUtils.getOptions ? loaderUtils.getOptions(this) : loaderUtils.parseQuery(this.query); 
-  
-  var langs = getLanguages(options);  
+  var options = getOptions(this, content);
   var twine = path.join(GEM_DIR, 'bin', 'twine');  //twine is located under gems/bin
   var langIndex = -1, langError = false, that = this, loader = null;
 
@@ -112,9 +122,9 @@ module.exports = function(content) {
   fs.writeSync(tmpFile.fd, content);
 
   if(options.dynamicLoader)
-    loader = new DynamicLoader(this, content, options.dynamicLoader);
+    loader = new DynamicLoader(this, options);
   else
-    loader = new StaticLoader(this);
+    loader = new InlineLoader(this, options);
 
   //function to generate languages one by one. this works in conjuntion with compileLang
   function generateLangs(error) {
@@ -123,12 +133,12 @@ module.exports = function(content) {
       langError = true;
     }
 
-    if(++langIndex < langs.length) 
-      compileLang(langs[langIndex]);
+    if(++langIndex < options.languages.length) 
+      compileLang(options.languages[langIndex]);
     else if(langError)
       callback(new Error('Failed to generate language files'));
     else
-      callback(null, loader.generateModule());
+      callback(null, loader.generateModule(options.defaultLanguage));
   }
 
   //function to generate language file for the language given

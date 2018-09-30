@@ -1,23 +1,23 @@
 //constructor for inline loader
-function StaticLoader(context) {
+function InlineLoader(context) {
   this.context = context;
   this.langStrings = {};  //output strings to be stored language wise
 } 
 
 //generate the output. here we are just adding it to our main language string object
-StaticLoader.prototype.generateOutput = function(lang, strings) {
+InlineLoader.prototype.generateOutput = function(lang, strings) {
   this.langStrings[lang] = strings;
 };
 
 //method to generate the module defenition
 //=> module.exports = loaderModule(langStrings)
-StaticLoader.prototype.generateModule = function() {
-  return 'module.exports = (' + loaderModule.toString() + ')(' + stringify(this.langStrings) + ')';
+InlineLoader.prototype.generateModule = function(defaultLang) {
+  var params = [JSON.stringify(defaultLang), stringify(this.langStrings)].join(', ');
+  return 'module.exports = (' + loaderModule.toString() + ')(' + params + ')';
 };
 
 //module funtion. This is the JS function defenition we return from our loader module.
-function loaderModule(langStrings) {
-  var defaultLang = 'en';
+function loaderModule(defaultLang, langStrings) {
   var userLang = defaultLang;
 
   try {
@@ -26,7 +26,7 @@ function loaderModule(langStrings) {
 
   /*function to load the strings for the language given.
   the function try to find the best possible property from langString matching the locale.
-  for the locale 'pt-br', the function tries to read the object in the order given below; 
+  for eg, with 'en' as default, for the locale 'pt-br', the function tries to read the object in the order given below; 
   => langStrings['pt-br.js'], langStrings['pt.js'] & langStrings['en'] */
   function loadLangStrings(lang) {
     try {
@@ -108,4 +108,4 @@ function stringify(langStrings) {
   return '{\n' + code + '}\n';
 }
 
-module.exports = StaticLoader;
+module.exports = InlineLoader;

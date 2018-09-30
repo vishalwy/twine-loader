@@ -1,16 +1,17 @@
 var loaderUtils = require('loader-utils');
 
 //constructor for dynamic loading language js files
-function DynamicLoader(context, content, options) {
+function DynamicLoader(context, options) {
   if(!context.emitFile) 
     throw new Error('emitFile is required from module system');
 
-  options = options || {};
+  var dynamicLoaderOptions = options.dynamicLoader || {};
+  this.loaderFunc = dynamicLoaderOptions.loaderFunc || getJS;  //set the function to load the uri
   this.context = context; 
-  this.loaderFunc = options.loaderFunc || getJS;  //set the function to load the uri
 
   //generate hash value for emiting the cotnent in output folder
-  this.urlPrefix = loaderUtils.interpolateName(context, options.urlPrefix || './[hash]-', {content: content});
+  this.urlPrefix = loaderUtils.interpolateName(context, 
+    dynamicLoaderOptions.urlPrefix || './[hash]-', {content: options.content});
 } 
 
 //method to generate the output. In this case we are writing the content to the file 
@@ -20,8 +21,12 @@ DynamicLoader.prototype.generateOutput = function(lang, strings) {
 
 //method to generate the module defenition
 //=> module.exports = loaderModule('[urlPrefix]', loaderFunc)
-DynamicLoader.prototype.generateModule = function() {
-  var params = [JSON.stringify(this.urlPrefix), this.loaderFunc.toString()].join(', ');
+DynamicLoader.prototype.generateModule = function(defaultLang) {
+  var params = [
+    JSON.stringify(defaultLang), 
+    JSON.stringify(this.urlPrefix), 
+    this.loaderFunc.toString()
+  ].join(', ');
   return 'module.exports = (' + loaderModule.toString() + ')(' + params + ')';
 };
 
@@ -32,8 +37,8 @@ function getJS(url) {
 }
 
 //module funtion. This is the JS function defenition we return from our loader module.
-function loaderModule(urlPrefix, loaderFunc) {
-  var langStrings = {}, defaultLang = 'en';
+function loaderModule(defaultLang, urlPrefix, loaderFunc) {
+  var langStrings = {};
   var userLang = defaultLang;
 
   try {
